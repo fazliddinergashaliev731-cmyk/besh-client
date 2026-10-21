@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0B2A5B">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Besh Express</title>
+<style>
+:root{--navy:#0B2A5B;--green:#22C55E;--line:#E5E7EB;--mut:#6B7280}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}html,body{height:100%;margin:0;overflow:hidden}
+body{font:15px/1.4 -apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#111827;background:#fff}
+[hidden]{display:none!important}
+#map{position:absolute;top:0;left:0;right:0;bottom:240px}
+#pinw{position:absolute;left:50%;top:calc((100% - 240px)/2);z-index:5;pointer-events:none;transform:translate(-50%,-100%);text-align:center}
+#pinlbl{background:#fff;border-radius:12px;padding:7px 12px;box-shadow:0 2px 10px #0003;font-weight:600;max-width:70vw;margin-bottom:6px}
+#pin{width:18px;height:18px;border-radius:50%;border:5px solid #fff;margin:0 auto;box-shadow:0 2px 8px #0005;position:relative}
+#pin:after{content:"";position:absolute;left:50%;top:100%;width:3px;height:14px;background:inherit;transform:translateX(-50%)}
+#top{position:absolute;z-index:10;top:calc(10px + env(safe-area-inset-top));left:10px;right:10px;display:flex;gap:8px;align-items:center}
+.chip{background:#fff;border:0;border-radius:22px;padding:9px 14px;box-shadow:0 2px 10px #0003;font:inherit;font-weight:700;color:var(--navy)}
+#top .sp{flex:1}.logo{font-size:17px}.logo span{color:var(--green)}
+#loc{position:absolute;z-index:10;right:12px;top:calc(64px + env(safe-area-inset-top));width:44px;height:44px;border-radius:50%;border:0;background:#fff;box-shadow:0 2px 10px #0003;font-size:22px;color:var(--navy)}
+#sheet{position:absolute;z-index:10;left:0;right:0;bottom:0;background:#fff;border-radius:22px 22px 0 0;padding:14px 16px calc(14px + env(safe-area-inset-bottom));box-shadow:0 -4px 20px #0003;max-height:62vh;overflow:auto}
+#sheet:before{content:"";display:block;width:38px;height:4px;border-radius:2px;background:#D1D5DB;margin:0 auto 10px}
+h3{margin:0 0 6px;font-size:20px;color:var(--navy)}small,.m{color:var(--mut)}.m{margin:2px 0}
+.addr{background:#F3F4F6;border-radius:12px;padding:12px;margin:8px 0;font-weight:600}
+input{display:block;width:100%;padding:12px;border:1px solid var(--line);border-radius:12px;font-size:16px;margin:6px 0}
+button.p,button.s{width:100%;border:0;border-radius:14px;padding:15px;font-size:17px;font-weight:700;cursor:pointer;margin-top:8px}
+button.p{background:var(--green);color:#052e16}button.s{background:#F3F4F6;color:#111827}
+.t{border:2px solid var(--line);border-radius:14px;padding:12px;display:flex;justify-content:space-between;align-items:center;margin-top:8px;cursor:pointer}
+.t.on{border-color:var(--green);background:#F0FDF4}.t b{font-size:20px}.t{padding:14px}
+.res{padding:10px 4px;border-bottom:1px solid var(--line);cursor:pointer}
+.big{font-size:30px;font-weight:800;color:var(--navy)}
+.pulse{width:60px;height:60px;border-radius:50%;background:var(--green);margin:8px auto 14px;animation:p 1.4s infinite}
+@keyframes p{0%{box-shadow:0 0 0 0 #22C55E88}100%{box-shadow:0 0 0 30px #22C55E00}}
+.dot{width:20px;height:20px;border-radius:50%;border:4px solid #fff;box-shadow:0 1px 6px #0006}.car{font-size:30px;line-height:1}
+#modal{position:absolute;z-index:20;inset:0;background:#fff;padding:60px 16px 16px;overflow:auto}
+#auth{max-width:340px;margin:10vh auto;padding:24px}#auth h1{margin:0 0 14px;color:var(--navy)}#auth h1 span{color:var(--green)}#err{color:#B91C1C;min-height:18px}
+.maplibregl-ctrl-bottom-left{bottom:240px!important}
+</style>
+</head>
+<body>
+<div id="auth">
+  <h1>Besh <span>Express</span></h1>
+  <input id="nm" placeholder="Ваше имя" hidden>
+  <input id="em" type="tel" inputmode="tel" placeholder="Телефон: +998 90 123 45 67" autocomplete="tel">
+  <input id="pw" type="password" placeholder="Пароль (от 6 символов)">
+  <div id="err"></div>
+  <button class="p" id="go">Войти</button>
+  <button class="s" id="sw">Нет аккаунта? Регистрация</button>
+</div>
+<div id="app" hidden>
+  <div id="map"></div>
+  <div id="pinw"><div id="pinlbl"></div><div id="pin"></div></div>
+  <div id="top"><span class="chip logo">Besh <span>Express</span></span><span class="sp"></span><button class="chip" id="hist">История</button><span class="chip" id="bonus"></span></div>
+  <button id="loc">◎</button>
+  <div id="sheet"></div>
+  <div id="modal" hidden></div>
+</div>
+
+<script>
+const YKEY = '0fcea056-c13b-41ec-9a02-93232c2ce192';  // ← ВСТАВЬТЕ СЮДА КЛЮЧ ЯНДЕКС КАРТ (между кавычками)
+if (YKEY) document.write('<script src="https://api-maps.yandex.ru/v3/?apikey=' + YKEY + '&lang=ru_RU"><\/script>');
+else document.write('<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css"><script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js"><\/script>');
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+// ---- Источник карты: меняется одной строкой (стили: positron, bright, liberty) ----
+// ---- Карта: Яндекс (если указан ключ), иначе запасная карта ----
+const M = (YKEY && window.ymaps3) ? (() => {
+  class Marker {
+    constructor(o) { this.w = document.createElement('div'); this.w.style.cssText = 'position:absolute;transform:translate(-50%,-50%)'; this.w.appendChild(o.element); }
+    setLngLat(c) { this.c = c; if (this.mk) this.mk.update({coordinates: c}); return this; }
+    addTo(map) { this.map = map; map.run(() => { this.mk = new ymaps3.YMapMarker({coordinates: this.c}, this.w); map.m.addChild(this.mk); }); return this; }
+    remove() { const m = this.map; if (m) m.run(() => { if (this.mk) { m.m.removeChild(this.mk); this.mk = null; } }); return this; }
+  }
+  class Bounds { constructor(a) { this.a = [a[0], a[1], a[0], a[1]]; }
+    extend(c) { const a = this.a; a[0] = Math.min(a[0], c[0]); a[1] = Math.min(a[1], c[1]); a[2] = Math.max(a[2], c[0]); a[3] = Math.max(a[3], c[1]); return this; } }
+  class YMapShim {
+    constructor(o) { this.q = []; this.h = {}; this.ok = false; this.layers = []; this.feats = [];
+      ymaps3.ready.then(() => {
+        const y = ymaps3;
+        this.m = new y.YMap(document.getElementById(o.container), {location: {center: o.center, zoom: o.zoom}}, [new y.YMapDefaultSchemeLayer({}), new y.YMapDefaultFeaturesLayer({})]);
+        this.m.addChild(new y.YMapListener({onUpdateComplete: e => { if (!(e && e.mapInAction)) (this.h.moveend || []).forEach(f => f()); }}));
+        this.ok = true; this.q.forEach(f => f()); this.q = []; (this.h.load || []).forEach(f => f());
+      });
+    }
+    run(f) { this.ok ? f() : this.q.push(f); }
+    on(e, f) { (this.h[e] = this.h[e] || []).push(f); if (e === 'load' && this.ok) f(); }
+    getCenter() { const c = this.m.center; return {lng: c[0], lat: c[1]}; }
+    flyTo(o) { this.run(() => this.m.update({location: {center: o.center, zoom: o.zoom, duration: 600}})); }
+    fitBounds(b, o) { const a = b.a, dx = (a[2] - a[0]) * .3 + .0008, dy = (a[3] - a[1]) * .3 + .0008;
+      this.run(() => this.m.update({location: {bounds: [[a[0] - dx, a[1] - dy], [a[2] + dx, a[3] + dy]], duration: 600}})); }
+    resize() {}
+    addSource() {}
+    addLayer(l) { this.layers.push({color: l.paint['line-color'], width: l.paint['line-width']}); }
+    getSource() { return this.ok ? {setData: f => this.route(f.geometry.coordinates)} : null; }
+    route(coords) {
+      this.feats.forEach(f => this.m.removeChild(f)); this.feats = [];
+      if (coords.length < 2) return;
+      this.layers.forEach(l => { const f = new ymaps3.YMapFeature({geometry: {type: 'LineString', coordinates: coords}, style: {stroke: [{color: l.color, width: l.width}]}}); this.m.addChild(f); this.feats.push(f); });
+    }
+  }
+  return {Map: YMapShim, Marker, LngLatBounds: Bounds};
+})() : {Map: maplibregl.Map, Marker: maplibregl.Marker, LngLatBounds: maplibregl.LngLatBounds};
+
+// ---- Иконка машины (вид сверху, как в Яндекс Go) ----
+const carEl = () => { const d = document.createElement('div');
+  d.innerHTML = '<svg viewBox="0 0 40 76" width="30" height="57" style="display:block;filter:drop-shadow(0 3px 4px #0007);transition:transform .8s linear"><rect x="4" y="3" width="32" height="70" rx="14" fill="#FFD21F" stroke="#B88900" stroke-width="1.5"/><rect x="9" y="16" width="22" height="13" rx="4" fill="#27303F"/><rect x="9" y="48" width="22" height="11" rx="4" fill="#27303F"/><rect x="8" y="30" width="24" height="17" rx="3" fill="#FFE766"/><rect x="14" y="36" width="12" height="5" rx="1.5" fill="#111"/><rect x="7" y="5" width="7" height="4" rx="2" fill="#fff"/><rect x="26" y="5" width="7" height="4" rx="2" fill="#fff"/><rect x="7" y="66" width="7" height="3.5" rx="1.5" fill="#E11D2E"/><rect x="26" y="66" width="7" height="3.5" rx="1.5" fill="#E11D2E"/></svg>';
+  return d; };
+const heading = (el, a, b) => { const dx = (b[0] - a[0]) * Math.cos(a[1] * Math.PI / 180), dy = b[1] - a[1];
+  if (Math.hypot(dx, dy) < 0.00004) return false;
+  el.firstChild.style.transform = `rotate(${Math.atan2(dx, dy) * 180 / Math.PI}deg)`; return true; };
+
+const MAP_STYLE = 'https://tiles.openfreemap.org/styles/positron';
+const SB = supabase.createClient('https://krphkeevnrtkcnsqbxfo.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtycGhrZWV2bnJ0a2Nuc3FieGZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIzODE0NzQsImV4cCI6MjEwNzk1NzQ3NH0.gXe8uTesz1NSEmiRTBXiP3uvAEm9GV2OENcLaVfyIoU', {auth: {storageKey: 'besh-client-auth'}});
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt = n => Number(n || 0).toLocaleString('ru-RU') + ' сум';
+const C = [70.61, 40.436];
+const km = (a, b, c, d) => { const r = x => x * Math.PI / 180, dl = r(c - a), dn = r(d - b);
+  return 12742 * Math.asin(Math.sqrt(Math.sin(dl / 2) ** 2 + Math.cos(r(a)) * Math.cos(r(c)) * Math.sin(dn / 2) ** 2)); };
+const mins = m => Math.max(1, Math.round(m));
+let map, reg = false, uid, S = {step: 'from'}, tariffs = [], ord = null, dismissed = null, mA, mB, mD, addr = '', rtm, lastKey = '';
+
+// ---- вход ----
+$('#sw').onclick = () => { reg = !reg; $('#nm').hidden = !reg; $('#go').textContent = reg ? 'Зарегистрироваться' : 'Войти';
+  $('#sw').textContent = reg ? 'Уже есть аккаунт? Войти' : 'Нет аккаунта? Регистрация'; };
+$('#go').onclick = async () => {
+  $('#err').textContent = '';
+  let ph = $('#em').value.replace(/\D/g, ''); if (ph.length === 9) ph = '998' + ph; if (ph.length !== 12) return $('#err').textContent = 'Введите номер: +998 XX XXX XX XX';
+  const e = ph + '@besh.uz', p = $('#pw').value;
+  const r = reg ? await SB.auth.signUp({email: e, password: p, options: {data: {role: 'client', full_name: $('#nm').value, phone: '+' + ph}}})
+                : await SB.auth.signInWithPassword({email: e, password: p});
+  if (r.error) return $('#err').textContent = r.error.message;
+  if (!r.data.session) return $('#err').textContent = 'Не удалось войти. Попробуйте ещё раз.';
+  start();
+};
+
+// ---- карта ----
+const dot = c => { const d = document.createElement('div'); d.className = 'dot'; d.style.background = c; return d; };
+async function start() {
+  const {data: {user}} = await SB.auth.getUser(); if (!user) return;
+  uid = user.id; $('#auth').hidden = true; $('#app').hidden = false;
+  map = new M.Map({container: 'map', style: MAP_STYLE, center: C, zoom: 14, attributionControl: {compact: true}});
+  map.on('load', () => {
+    map.addSource('route', {type: 'geojson', data: {type: 'Feature', geometry: {type: 'LineString', coordinates: []}}});
+    map.addLayer({id: 'rc', type: 'line', source: 'route', layout: {'line-cap': 'round', 'line-join': 'round'}, paint: {'line-color': '#fff', 'line-width': 10}});
+    map.addLayer({id: 'rl', type: 'line', source: 'route', layout: {'line-cap': 'round', 'line-join': 'round'}, paint: {'line-color': '#0B2A5B', 'line-width': 5}});
+  });
+  map.on('moveend', () => {
+    if (ord || !['from', 'to'].includes(S.step)) return;
+    clearTimeout(rtm); addr = 'Определяем адрес…'; lbl();
+    rtm = setTimeout(async () => { const c = map.getCenter(); addr = await rev(c.lat, c.lng); lbl(); }, 500);
+  });
+  const [t, w] = await Promise.all([SB.from('tariffs').select('*').eq('active', true).order('min_fare'), SB.from('wallets').select('bonus_balance').eq('user_id', uid).maybeSingle()]);
+  tariffs = t.data || []; $('#bonus').textContent = 'Бонус ' + fmt(w.data?.bonus_balance);
+  locate(true); await track(); setInterval(track, 3000); view();
+}
+function locate(quiet) {
+  navigator.geolocation?.getCurrentPosition(p => map.flyTo({center: [p.coords.longitude, p.coords.latitude], zoom: 16}),
+    () => !quiet && alert('Не удалось определить место. Передвиньте карту.'), {enableHighAccuracy: true, timeout: 8000});
+}
+$('#loc').onclick = () => locate(false);
+async function rev(lat, lng) {
+  try {
+    const j = await (await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&accept-language=ru&zoom=18&lat=${lat}&lon=${lng}`)).json();
+    const a = j.address || {}, s = [a.road || a.pedestrian || a.neighbourhood || a.suburb, a.house_number].filter(Boolean).join(', ');
+    return s || (j.display_name || '').split(',').slice(0, 2).join(',') || 'Точка на карте';
+  } catch (e) { return 'Точка на карте'; }
+}
+async function getRoute(a, b) {
+  let r = {km: km(a[0], a[1], b[0], b[1]) * 1.3, min: km(a[0], a[1], b[0], b[1]) * 1.3 * 2.2, coords: [a, b]};
+  try {
+    const x = (await (await fetch(`https://router.project-osrm.org/route/v1/driving/${a[0]},${a[1]};${b[0]},${b[1]}?overview=full&geometries=geojson`)).json()).routes[0];
+    r = {km: x.distance / 1000, min: x.duration / 60, coords: x.geometry.coordinates};
+  } catch (e) {}
+  return r;
+}
+function draw(coords) {
+  const src = map.getSource('route'); if (!src) return;
+  src.setData({type: 'Feature', geometry: {type: 'LineString', coordinates: coords}});
+  if (coords.length > 1) map.fitBounds(coords.reduce((b, c) => b.extend(c), new M.LngLatBounds(coords[0], coords[0])),
+    {padding: {top: 90, bottom: 30, left: 40, right: 40}, duration: 600, maxZoom: 17});
+}
+const lbl = () => { $('#pinlbl').textContent = addr; const a = $('.addr'); if (a) a.textContent = addr; };
+
+// ---- шаги выбора ----
+const zoneOf = () => Math.max(km(C[0], C[1], S.A.lng, S.A.lat), km(C[0], C[1], S.B.lng, S.B.lat)) > 7 ? 'suburb' : 'city';
+const price = t => Math.round(Math.max(t.min_fare, Number(t.base_fare) + Number(t.per_km) * S.route.km) / 100) * 100;
+function resetAll() {
+  [mA, mB].forEach(m => m && m.remove()); mA = mB = null; S = {step: 'from'}; draw([]); view();
+}
+async function confirm_(step) {
+  const c = map.getCenter(), p = {lat: c.lat, lng: c.lng, addr};
+  if (step === 'from') { S.A = p; S.step = 'to'; mA = new M.Marker({element: dot('#22C55E')}).setLngLat([p.lng, p.lat]).addTo(map); view(); }
+  else {
+    S.B = p; S.step = 'ready'; mB = new M.Marker({element: dot('#0B2A5B')}).setLngLat([p.lng, p.lat]).addTo(map);
+    const dd = km(S.A.lng, S.A.lat, S.B.lng, S.B.lat) * 1.3; S.route = {km: dd, min: dd * 2.2, coords: [[S.A.lng, S.A.lat], [S.B.lng, S.B.lat]]};
+    const list = tariffs.filter(t => t.zone === zoneOf()); S.tid = (list[0] || tariffs[0])?.id; draw(S.route.coords); view();
+    getRoute([S.A.lng, S.A.lat], [S.B.lng, S.B.lat]).then(r => { if (S.step !== 'ready') return; S.route = r; draw(r.coords); lastKey = ''; view(); });
+  }
+}
+async function order() {
+  const t = tariffs.find(x => x.id === S.tid);
+  const {error} = await SB.rpc('create_order', {p_pickup_address: S.A.addr, p_pickup_lat: S.A.lat, p_pickup_lng: S.A.lng,
+    p_dropoff_address: S.B.addr, p_dropoff_lat: S.B.lat, p_dropoff_lng: S.B.lng, p_tariff: t.id, p_distance_km: +S.route.km.toFixed(2)});
+  if (error) return alert(error.message);
+  track();
+}
+let qt;
+function search(q) {
+  clearTimeout(qt); if (q.length < 3) { S.res = []; return resHtml(); }
+  qt = setTimeout(async () => {
+    try {
+      const u = `https://nominatim.openstreetmap.org/search?format=jsonv2&accept-language=ru&limit=5&countrycodes=uz&viewbox=70.2,40.7,71.0,40.2&q=${encodeURIComponent(q)}`;
+      S.res = await (await fetch(u)).json();
+    } catch (e) { S.res = []; }
+    resHtml();
+  }, 600);
+}
+const resHtml = () => { const r = $('#res'); if (r) r.innerHTML = (S.res || []).map((x, i) => `<div class="res" data-a="go" data-i="${i}">${esc(x.display_name.split(',').slice(0, 3).join(','))}</div>`).join(''); };
+
+// ---- заказ ----
+async function track() {
+  const {data} = await SB.from('orders')
+    .select('*, d:drivers!orders_driver_id_fkey(car_model,car_color,plate,lat,lng,p:profiles!drivers_id_fkey(full_name,phone))')
+    .eq('client_id', uid).order('created_at', {ascending: false}).limit(1).maybeSingle();
+  const active = data && ['searching', 'accepted', 'arrived', 'in_progress'].includes(data.status);
+  const recent = data && ['completed', 'cancelled'].includes(data.status) && data.id !== dismissed
+    && Date.now() - new Date(data.completed_at || data.cancelled_at).getTime() < 600000;
+  const old = ord; ord = active || recent ? data : null;
+  if (ord && !old) {
+    [mA, mB].forEach(m => m && m.remove());
+    mA = new M.Marker({element: dot('#22C55E')}).setLngLat([ord.pickup_lng, ord.pickup_lat]).addTo(map);
+    mB = new M.Marker({element: dot('#0B2A5B')}).setLngLat([ord.dropoff_lng, ord.dropoff_lat]).addTo(map);
+    ord.route = await getRoute([ord.pickup_lng, ord.pickup_lat], [ord.dropoff_lng, ord.dropoff_lat]); draw(ord.route.coords);
+  } else if (ord && old?.route) ord.route = old.route;
+  if (ord?.d?.lat && active) {
+    const np = [ord.d.lng, ord.d.lat];
+    if (!mD) { const e = carEl(); mD = new M.Marker({element: e}).setLngLat(np).addTo(map); mD.el = e; mD.p = np; }
+    else { if (heading(mD.el, mD.p, np)) mD.p = np; mD.setLngLat(np); }
+  } else if (mD) { mD.remove(); mD = null; }
+  view();
+}
+const act = async (fn) => { const {error} = await SB.rpc(fn, {p_order: ord.id}); if (error) alert(error.message); track(); };
+function finish() { dismissed = ord.id; ord = null; if (mD) { mD.remove(); mD = null; } resetAll(); }
+
+// ---- нижняя панель ----
+const STT = {accepted: 'Водитель едет к вам', arrived: 'Водитель на месте', in_progress: 'Вы в пути'};
+function view() {
+  const S_ = $('#sheet'); let h = '';
+  const picking = !ord && ['from', 'to'].includes(S.step);
+  $('#pinw').hidden = !picking; $('#pin').style.background = S.step === 'to' ? '#0B2A5B' : '#22C55E'; $('#loc').hidden = !!ord;
+  if (picking) $('#pinlbl').textContent = addr || 'Определяем адрес…';
+  if (ord) {
+    const d = ord.d || {};
+    if (ord.status === 'searching') h = `<div class="pulse"></div><h3 style="text-align:center">Ищем водителя…</h3><div class="m" style="text-align:center">Заказ отправлен ближайшим водителям</div><div class="m">${esc(ord.pickup_address)} → ${esc(ord.dropoff_address)}</div><button class="s" data-a="cancel">Отменить заказ</button>`;
+    else if (ord.status === 'completed') h = `<h3>Поездка завершена</h3><div class="m">Оплатите водителю наличными</div><div class="big">${fmt(ord.price)}</div><button class="p" data-a="done">Новый заказ</button>`;
+    else if (ord.status === 'cancelled') h = `<h3>Заказ отменён</h3><button class="p" data-a="done">Новый заказ</button>`;
+    else {
+      let eta = '';
+      if (d.lat) eta = ord.status === 'accepted' ? `Приедет через ~${mins(km(d.lng, d.lat, ord.pickup_lng, ord.pickup_lat) * 1.4 / 25 * 60)} мин`
+        : ord.status === 'in_progress' ? `До места ~${mins(km(d.lng, d.lat, ord.dropoff_lng, ord.dropoff_lat) * 1.4 / 30 * 60)} мин` : '';
+      h = `<h3>${STT[ord.status]}</h3><div class="m"><b>${eta}</b></div>
+        <div class="t" style="cursor:default"><div><b>${esc(d.car_model)}</b><br><small>${esc(d.car_color)} · ${esc(d.p?.full_name || 'Водитель')}</small></div><b>${esc(d.plate)}</b></div>
+        <div class="m" style="margin-top:8px">${esc(ord.pickup_address)} → ${esc(ord.dropoff_address)} · <b>${fmt(ord.price)}</b></div>
+        ${d.p?.phone ? `<a href="tel:${esc(d.p.phone)}"><button class="s">Позвонить водителю</button></a>` : ''}
+        ${ord.status !== 'in_progress' ? '<button class="s" data-a="cancel">Отменить</button>' : ''}`;
+    }
+  } else if (S.step === 'from') h = `<h3>Откуда поедем?</h3><div class="m">Двигайте карту, булавка укажет точку</div><div class="addr">${esc(addr || 'Определяем адрес…')}</div><button class="p" data-a="from">Подтвердить посадку</button>`;
+  else if (S.step === 'to') h = `<div class="m">Откуда: ${esc(S.A.addr)}</div><h3>Куда едем?</h3><input id="q" placeholder="Поиск адреса или места" autocomplete="off"><div id="res"></div><div class="addr">${esc(addr || 'Определяем адрес…')}</div><button class="p" data-a="to">Готово</button><button class="s" data-a="reset">Назад</button>`;
+  else if (!S.route) h = '<h3>Строим маршрут…</h3>';
+  else {
+    const list = tariffs.filter(t => t.zone === zoneOf());
+    h = `<div class="m">${esc(S.A.addr)} → ${esc(S.B.addr)}</div>` + (list.length ? list : tariffs).map(t =>
+      `<div class="t ${t.id === S.tid ? 'on' : ''}" data-a="tar" data-id="${t.id}"><div><b>${esc(t.name)}</b><br><small>${mins(S.route.min)} мин · ${S.route.km.toFixed(1)} км</small></div><b>${fmt(price(t))}</b></div>`).join('')
+      + `<div class="m" style="margin-top:8px">Оплата наличными водителю</div><button class="p" data-a="order">Заказать</button><button class="s" data-a="reset">Сбросить</button>`;
+  }
+  const key = h; if (key === lastKey) return; lastKey = key; S_.innerHTML = h;
+  resHtml();
+  $('#map').style.bottom = Math.max(120, S_.offsetHeight - 18) + 'px'; $('#pinw').style.top = `calc((100% - ${$('#map').style.bottom})/2)`; map.resize();
+}
+$('#sheet').onclick = e => {
+  const el = e.target.closest('[data-a]'); if (!el) return; const a = el.dataset.a;
+  if (a === 'from' || a === 'to') confirm_(a);
+  else if (a === 'tar') { S.tid = el.dataset.id; lastKey = ''; view(); }
+  else if (a === 'go') { const x = S.res[+el.dataset.i]; addr = x.display_name.split(',').slice(0, 2).join(','); map.flyTo({center: [+x.lon, +x.lat], zoom: 17}); $('#res').innerHTML = ''; }
+  else if (a === 'order') order();
+  else if (a === 'cancel') act('cancel_order');
+  else if (a === 'done') finish();
+  else if (a === 'reset') resetAll();
+};
+$('#sheet').oninput = e => { if (e.target.id === 'q') search(e.target.value.trim()); };
+
+// ---- история ----
+const ST = {searching: 'Поиск', accepted: 'Принят', arrived: 'Водитель на месте', in_progress: 'В пути', completed: 'Завершён', cancelled: 'Отменён'};
+$('#hist').onclick = async () => {
+  const {data} = await SB.from('orders').select('*').eq('client_id', uid).order('created_at', {ascending: false}).limit(20);
+  $('#modal').hidden = false;
+  $('#modal').innerHTML = '<button class="s" id="cl">← Назад</button><h3 style="margin-top:12px">История поездок</h3>' + ((data || []).map(o =>
+    `<div class="t" style="cursor:default"><div><b>${esc(o.dropoff_address || 'Поездка')}</b><br><small>${new Date(o.created_at).toLocaleString('ru-RU')} · ${ST[o.status]}</small></div><b>${fmt(o.price)}</b></div>`).join('') || '<div class="m">Поездок пока нет</div>')
+    + '<hr style="border:0;border-top:1px solid #E5E7EB;margin:20px 0"><button class="s" id="lo">Выйти из аккаунта</button>';
+  $('#cl').onclick = () => $('#modal').hidden = true;
+  $('#lo').onclick = async () => { await SB.auth.signOut(); location.reload(); };
+};
+
+SB.auth.getSession().then(({data}) => { if (data.session) start(); });
+</script>
+<script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}))</script>
+</body>
+</html>
